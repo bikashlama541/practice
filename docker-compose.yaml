@@ -1,0 +1,150 @@
+---
+version: '3.3'
+volumes:
+  anchore-db-volume:
+    # Set this to 'true' to use an external volume. In which case, it must be created manually with "docker volume create anchore-db-volume"
+    external: false
+
+  anchore-scratch: {}
+
+services:
+  # The primary API endpoint service
+  engine-api:
+    image: anchore/anchore-engine:v0.7.0
+    depends_on:
+    - anchore-db
+    - engine-catalog
+    #volumes:
+    #- ./config-engine.yaml:/config/config.yaml:z
+    ports:
+    - "8228:8228"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 100m
+    volumes:
+      - /app/aevolume/config.yaml:/config/config.yaml:z
+    environment:
+    - ANCHORE_ENDPOINT_HOSTNAME=engine-api
+    - ANCHORE_DB_HOST=anchore-db
+    - ANCHORE_DB_PASSWORD:/run/secrets/ANCHORE_DB_PASSWORD
+    - ANCHORE_LOG_LEVEL=INFO
+    secrets:
+      - ANCHORE_DB_PASSWORD
+    command: ["anchore-manager", "service", "start", "apiext"]
+
+  # Catalog is the primary persistence and state manager of the system
+  engine-catalog:
+    image: anchore/anchore-engine:v0.7.0
+    depends_on:
+    - anchore-db
+    #volumes:
+    #- ./config-engine.yaml:/config/config.yaml:z
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 100m
+    expose:
+    - 8228
+    volumes:
+      - /app/aevolume/config.yaml:/config/config.yaml:z
+    environment:
+    - ANCHORE_ENDPOINT_HOSTNAME=engine-catalog
+    - ANCHORE_DB_HOST=anchore-db
+    - ANCHORE_DB_PASSWORD:/run/secrets/ANCHORE_DB_PASSWORD
+    - ANCHORE_LOG_LEVEL=INFO
+    secrets:
+      - ANCHORE_DB_PASSWORD
+    command: ["anchore-manager", "service", "start", "catalog"]
+  engine-simpleq:
+    image: anchore/anchore-engine:v0.7.0
+    depends_on:
+    - anchore-db
+    - engine-catalog
+    #volumes:
+    #- ./config-engine.yaml:/config/config.yaml:z
+    expose:
+    - 8228
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 100m
+    volumes:
+      - /app/aevolume/config.yaml:/config/config.yaml:z
+    environment:
+    - ANCHORE_ENDPOINT_HOSTNAME=engine-simpleq
+    - ANCHORE_DB_HOST=anchore-db
+    - ANCHORE_DB_PASSWORD:/run/secrets/ANCHORE_DB_PASSWORD
+    - ANCHORE_LOG_LEVEL=INFO
+    secrets:
+      - ANCHORE_DB_PASSWORD
+    command: ["anchore-manager", "service", "start", "simplequeue"]
+  engine-policy-engine:
+    image: anchore/anchore-engine:v0.7.0
+    depends_on:
+    - anchore-db
+    - engine-catalog
+    #volumes:
+    #- ./config-engine.yaml:/config/config.yaml:z
+    expose:
+    - 8228
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 100m
+    volumes:
+      - /app/aevolume/config.yaml:/config/config.yaml:z
+    environment:
+    - ANCHORE_ENDPOINT_HOSTNAME=engine-policy-engine
+    - ANCHORE_DB_HOST=anchore-db
+    - ANCHORE_DB_PASSWORD:/run/secrets/ANCHORE_DB_PASSWORD
+    - ANCHORE_LOG_LEVEL=INFO
+    secrets:
+      - ANCHORE_DB_PASSWORD
+    command: ["anchore-manager", "service", "start", "policy_engine"]
+  engine-analyzer:
+    image: anchore/anchore-engine:v0.7.0
+    depends_on:
+    - anchore-db
+    - engine-catalog
+    #volumes:
+    #- ./config-engine.yaml:/config/config.yaml:z
+    expose:
+    - 8228
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 100m
+    volumes:
+      - /app/aevolume/config.yaml:/config/config.yaml:z
+    environment:
+    - ANCHORE_ENDPOINT_HOSTNAME=engine-analyzer
+    - ANCHORE_DB_HOST=anchore-db
+    - ANCHORE_DB_PASSWORD:/run/secrets/ANCHORE_DB_PASSWORD
+    - ANCHORE_LOG_LEVEL=INFO
+    secrets:
+      - ANCHORE_DB_PASSWORD
+    volumes:
+    - anchore-scratch:/analysis_scratch
+    - /app/aevolume/config.yaml:/config/config.yaml:z
+    command: ["anchore-manager", "service", "start", "analyzer"]
+  anchore-db:
+    image: "anchore/engine-db-preload:v0.7.0"
+    volumes:
+    - anchore-db-volume:/var/lib/postgresql/data
+    environment:
+    - POSTGRES_PASSWORD:/run/secrets/POSTGRES_PASSWORD
+    secrets:
+      - POSTGRES_PASSWORD
+    expose:
+    - 5432
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 100m
+secrets:
+  ANCHORE_DB_PASSWORD:
+    file: ./.secrets/ANCHORE_DB_PASSWORD
+  POSTGRES_PASSWORD:
+    file: ./.secrets/POSTGRES_PASSWORD
+
